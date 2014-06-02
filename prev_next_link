@@ -1,0 +1,70 @@
+<?php
+$parentId = $modx->resource->get('parent');
+
+$children = $modx->getChildIds($parentId, 8, array('context' => 'web'));
+if (empty($children)) {
+	$modx->log(modX::LOG_LEVEL_ERROR, 'These parents have now children.');
+	return;
+}
+
+$childrenInfo = array();
+$childrenIds = array();
+$parents = $modx->getOption('38', $scriptProperties, $modx->resource->get('38'));
+$q = $modx->newQuery('modResource');
+$q->select(array('modResource.id', 'modResource.pagetitle'));
+$q->where(array(
+	'published' => true,
+	'deleted' 	=> false,
+	'id:IN' 	=> $children
+));
+//$q->sortby('menuindex', 'ASC');
+$q->prepare();
+$q->stmt->execute();
+$rs = $q->stmt->fetchAll(PDO::FETCH_ASSOC);
+if (is_array($rs) && !empty($rs)) {
+	foreach ($rs as $r) {
+		$childrenIds[] = $r['id'];
+		$childrenInfo[$r['id']] = $r['pagetitle'];
+	}
+}
+
+//меняем местами ключи и значения, т.к. нам известен id текущего ресурса
+$reverced = array_flip($childrenIds);
+
+//id текущего ресурса
+$currentId = $modx->resource->get('id');
+
+$firstResourceId = $childrenIds[0];
+$lastNum = count($childrenIds) - 1;
+
+//id последнего дочернего ресурса в массиве
+$lastResourceId = $childrenIds[$lastNum];
+
+//ключ текущего ресурса в реверсивном массиве
+$currentNum = $reverced[$currentId];
+
+if ($currentId == $firstResourceId) {
+        $prevId = $childrenIds[$lastNum];
+        $nextId = $childrenIds[$currentNum + 1];
+}
+else if ($currentId == $lastResourceId) {
+        $prevId = $childrenIds[$currentNum - 1];
+        $nextId = $childrenIds[0];
+}
+else {
+        $prevId = $childrenIds[$currentNum - 1];
+        $nextId = $currentNum + 1;
+}
+
+$prevData = array(
+	'link' 	=> $modx->makeUrl($prevId, 'web', '', 'full'),
+	'title' => $childrenInfo[$prevId]
+);
+$nextData = array(
+	'link' 	=> $modx->makeUrl($nextId, 'web', '', 'full'),
+	'title' => $childrenInfo[$nextId]
+);
+
+$output = $modx->getChunk('prevTpl', $prevData) . $modx->getChunk('nextTpl', $nextData);
+
+return $output;
